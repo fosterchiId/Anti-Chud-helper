@@ -70,9 +70,7 @@
 <div id="app">
   <header>
     <h1>Anti-chud helper <span class="badge">shared &amp; permanent</span></h1>
-    <p class="sub">Every English word below can be clicked. Clicking turns a word green and saves it —
-      for anyone who opens this link, at any time. This is permanent: once a word is green, it
-      can't be unmarked. Unmarked words stay white.</p>
+    <p class="sub">!! the  words save only for you and gets removed once the page reloads</p>
   </header>
 
   <div class="stats">
@@ -229,16 +227,6 @@ const localAdapter = {
   }
 };
 
-if (!hasSharedStorage){
-  const notice = document.createElement('div');
-  notice.style.cssText = 'background:#3a2a00;border:1px solid #7a5a00;color:#ffd479;'
-    + 'padding:10px 14px;border-radius:8px;font-size:0.82rem;margin:0 0 14px;line-height:1.5;';
-  notice.innerHTML = 'This page is running outside Claude.ai (e.g. on GitHub Pages), so there\'s '
-    + 'no shared server to save marks to. Marks below are saved only in <b>this browser</b>, not '
-    + 'shared with other visitors. To get true shared, permanent marks for everyone with the link, '
-    + 'this needs a small backend (e.g. Firebase) wired in — ask and it can be added.';
-  document.querySelector('header').after(notice);
-}
 
 let saveTimer = null;
 function persistMarks(){
