@@ -5,13 +5,13 @@
 <title>Anti-chud helper</title>
 <style>
   :root{
-    --bg:#faf9f6;
-    --ink:#1c1c1a;
-    --muted:#7a766d;
-    --line:#e4e0d6;
-    --card:#ffffff;
-    --accent:#000000;
-    --accent-soft:#ececec;
+    --bg:#0c0c0c;
+    --ink:#f1efe8;
+    --muted:#9b978d;
+    --line:#333333;
+    --card:#1a1a1a;
+    --accent:#4a4a4a;
+    --accent-soft:#242424;
     --green:#000000;
     --green-ink:#ffffff;
   }
@@ -43,11 +43,11 @@
   #sectionTitle{font-size:0.8rem;color:var(--muted);margin:0 0 10px;text-transform:uppercase;
     letter-spacing:.06em;}
   #words{display:flex;flex-wrap:wrap;gap:6px;}
-  .word{border:1px solid var(--line);background:#fff;color:var(--ink);
+  .word{border:1px solid var(--line);background:var(--card);color:var(--ink);
     padding:5px 10px;border-radius:7px;font-size:0.88rem;cursor:pointer;
     user-select:none;transition:background .12s, border-color .12s, color .12s, transform .06s;}
-  .word:hover{border-color:var(--accent);transform:translateY(-1px);}
-  .word.marked{background:var(--green);border-color:var(--green);color:#fff;font-weight:600;
+  .word:hover{border-color:var(--muted);transform:translateY(-1px);}
+  .word.marked{background:#000000;border-color:#ffffff;color:#ffffff;font-weight:600;
     cursor:default;}
   .word.marked:hover{transform:none;}
   .sentinel{height:1px;}
@@ -70,7 +70,9 @@
 <div id="app">
   <header>
     <h1>Anti-chud helper <span class="badge">shared &amp; permanent</span></h1>
-    <p class="sub">helps knowing what word are tried and which one aint tried yet</p>
+    <p class="sub">Every English word below can be clicked. Clicking turns a word green and saves it —
+      for anyone who opens this link, at any time. This is permanent: once a word is green, it
+      can't be unmarked. Unmarked words stay white.</p>
   </header>
 
   <div class="stats">
@@ -209,12 +211,44 @@ function setupObserver(){
   io.observe(sentinel);
 }
 
+// window.storage only exists inside Claude.ai's artifact runtime. On a plain
+// static host like GitHub Pages there is no server, so there is nowhere to
+// keep a *shared* record — the best a static page can do on its own is save
+// marks locally, in that one visitor's browser.
+const hasSharedStorage = (typeof window.storage !== 'undefined' && window.storage !== null);
+
+const localAdapter = {
+  async get(key){
+    const raw = localStorage.getItem(key);
+    if (raw === null) return null;
+    return { value: raw };
+  },
+  async set(key, value){
+    localStorage.setItem(key, value);
+    return { value };
+  }
+};
+
+if (!hasSharedStorage){
+  const notice = document.createElement('div');
+  notice.style.cssText = 'background:#3a2a00;border:1px solid #7a5a00;color:#ffd479;'
+    + 'padding:10px 14px;border-radius:8px;font-size:0.82rem;margin:0 0 14px;line-height:1.5;';
+  notice.innerHTML = 'This page is running outside Claude.ai (e.g. on GitHub Pages), so there\'s '
+    + 'no shared server to save marks to. Marks below are saved only in <b>this browser</b>, not '
+    + 'shared with other visitors. To get true shared, permanent marks for everyone with the link, '
+    + 'this needs a small backend (e.g. Firebase) wired in — ask and it can be added.';
+  document.querySelector('header').after(notice);
+}
+
 let saveTimer = null;
 function persistMarks(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try{
-      const result = await window.storage.set('marked_words', JSON.stringify([...marked]), true);
+      const adapter = hasSharedStorage ? window.storage : localAdapter;
+      const result = hasSharedStorage
+        ? await adapter.set('marked_words', JSON.stringify([...marked]), true)
+        : await adapter.set('marked_words', JSON.stringify([...marked]));
       if (!result){ toast('Could not save — try again'); }
     }catch(err){
       console.error('Storage save error', err);
@@ -233,7 +267,9 @@ function toggleWord(w, el){
 
 async function loadMarks(){
   try{
-    const result = await window.storage.get('marked_words', true);
+    const result = hasSharedStorage
+      ? await window.storage.get('marked_words', true)
+      : await localAdapter.get('marked_words');
     if (result && result.value){
       const arr = JSON.parse(result.value);
       marked = new Set(arr);
@@ -246,10 +282,15 @@ async function loadMarks(){
 }
 
 document.getElementById('resetBtn').onclick = async () => {
-  if (!confirm('This clears every mark for every visitor. Continue?')) return;
+  const scope = hasSharedStorage ? 'every visitor' : 'this browser';
+  if (!confirm('This clears every mark for ' + scope + '. Continue?')) return;
   marked = new Set();
   try{
-    await window.storage.set('marked_words', JSON.stringify([]), true);
+    if (hasSharedStorage){
+      await window.storage.set('marked_words', JSON.stringify([]), true);
+    } else {
+      await localAdapter.set('marked_words', JSON.stringify([]));
+    }
   }catch(err){ console.error(err); }
   updateStats();
   if (currentFilter) runSearch(currentFilter); else selectLetter(currentLetter);
